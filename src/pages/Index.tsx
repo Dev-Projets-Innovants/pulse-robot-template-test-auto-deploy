@@ -11,6 +11,7 @@ import Testimonials from "@/components/Testimonials";
 import Newsletter from "@/components/Newsletter";
 import MadeByHumans from "@/components/MadeByHumans";
 import Footer from "@/components/Footer";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const Index = () => {
   // Initialize intersection observer to detect when elements enter viewport
@@ -60,19 +61,41 @@ const Index = () => {
 
   return (
     <div className="min-h-screen">
-      <Navbar />
-      <main className="space-y-4 sm:space-y-8"> {/* Reduced space on mobile */}
-        <Hero />
-        <HumanoidSection />
-        <SpecsSection />
-        <DetailsSection />
-        <ImageShowcaseSection />
-        <Features />
-        <Testimonials />
-        <Newsletter />
-        <MadeByHumans />
+      <ErrorBoundary>
+        <Navbar />
+      </ErrorBoundary>
+      <main className="space-y-4 sm:space-y-8">
+        <ErrorBoundary>
+          <Hero />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <HumanoidSection />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <SpecsSection />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <DetailsSection />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <ImageShowcaseSection />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <Features />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <Testimonials />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <Newsletter />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <MadeByHumans />
+        </ErrorBoundary>
       </main>
-      <Footer />
+      <ErrorBoundary>
+        <Footer />
+      </ErrorBoundary>
     </div>
   );
 };
