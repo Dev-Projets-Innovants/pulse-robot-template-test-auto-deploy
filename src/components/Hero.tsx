@@ -1,18 +1,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowRight, RefreshCw } from "lucide-react";
-import LottieAnimation from "./LottieAnimation";
-import LoadingSpinner from "./LoadingSpinner";
+import { ArrowRight } from "lucide-react";
 import ErrorBoundary from "./ErrorBoundary";
-import { useLottieAnimation } from "@/hooks/useLottieAnimation";
 
 const Hero = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [isMobile, setIsMobile] = useState(false);
-  
-  const { animationData, loading, error, retry } = useLottieAnimation('/loop-header.lottie');
 
   useEffect(() => {
     // Check if mobile on mount and when window resizes
@@ -82,44 +77,6 @@ const Hero = () => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isMobile]);
-
-  const renderAnimation = () => {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <LoadingSpinner size="lg" />
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center h-64 text-center">
-          <p className="text-gray-600 mb-4">Failed to load animation</p>
-          <button
-            onClick={retry}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <RefreshCw size={16} />
-            Retry
-          </button>
-        </div>
-      );
-    }
-
-    if (animationData) {
-      return (
-        <LottieAnimation 
-          animationPath={animationData} 
-          className="w-full h-auto max-w-lg mx-auto"
-          loop={true}
-          autoplay={true}
-        />
-      );
-    }
-
-    return null;
-  };
   
   return (
     <section 
@@ -184,25 +141,20 @@ const Hero = () => {
           </div>
           
           <div className="w-full lg:w-1/2 relative mt-6 lg:mt-0">
-            <ErrorBoundary fallback={<div className="text-center p-8">Animation unavailable</div>}>
+            <ErrorBoundary fallback={<div className="text-center p-8">Image unavailable</div>}>
               <div className="relative z-10 animate-fade-in" style={{ animationDelay: "0.9s" }}>
-                {renderAnimation()}
-                {!loading && !animationData && !error && (
-                  <>
-                    <div className="absolute inset-0 bg-dark-900 rounded-2xl sm:rounded-3xl -z-10 shadow-xl"></div>
-                    <div className="relative transition-all duration-500 ease-out overflow-hidden rounded-2xl sm:rounded-3xl shadow-2xl">
-                      <img 
-                        ref={imageRef} 
-                        src="/lovable-uploads/5663820f-6c97-4492-9210-9eaa1a8dc415.png" 
-                        alt="Atlas Robot" 
-                        className="w-full h-auto object-cover transition-transform duration-500 ease-out" 
-                        style={{ transformStyle: 'preserve-3d' }} 
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0" style={{ backgroundImage: 'url("/hero-image.jpg")', backgroundSize: 'cover', backgroundPosition: 'center', mixBlendMode: 'overlay', opacity: 0.5 }}></div>
-                    </div>
-                  </>
-                )}
+                <div className="absolute inset-0 bg-dark-900 rounded-2xl sm:rounded-3xl -z-10 shadow-xl"></div>
+                <div className="relative transition-all duration-500 ease-out overflow-hidden rounded-2xl sm:rounded-3xl shadow-2xl">
+                  <img 
+                    ref={imageRef} 
+                    src="/lovable-uploads/5663820f-6c97-4492-9210-9eaa1a8dc415.png" 
+                    alt="Atlas Robot" 
+                    className="w-full h-auto object-cover transition-transform duration-500 ease-out" 
+                    style={{ transformStyle: 'preserve-3d' }} 
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0" style={{ backgroundImage: 'url("/hero-image.jpg")', backgroundSize: 'cover', backgroundPosition: 'center', mixBlendMode: 'overlay', opacity: 0.5 }}></div>
+                </div>
               </div>
             </ErrorBoundary>
           </div>
