@@ -13,6 +13,9 @@ const App = () => {
   // Added console log to trigger GitHub Actions workflow
   console.log("App initialized - GitHub Actions workflow should trigger on push");
   
+  // Dummy modification to test GitHub Actions deployment - version 2
+  console.log("Testing deployment pipeline with dummy change");
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
