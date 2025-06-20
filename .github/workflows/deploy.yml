@@ -3,7 +3,7 @@ name: Deploy Application (Vite React TS)
 
 on:
   push:
-    branches: [main, development_test]   # prod  | dev‑test
+    branches: [main, development_test]   # prod  | development_test
   workflow_dispatch:
     inputs:
       environment:
