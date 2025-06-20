@@ -80,20 +80,40 @@ jobs:
         supabase db push
         if ($LASTEXITCODE -ne 0) {
           Write-Warning "⚠️ Migration mismatch detected, running auto‑repair..."
-          # Étape A : récupérer l'état actuel de la base
+          
+          # Étape 1 : pull le schéma actuel pour se synchroniser
           supabase db pull
-          # Étape B : dire à Supabase que tout ce qui est déjà sur la base est 'applied'
-          supabase migration repair --status applied --all
-          # Étape C : retenter le push (devrait désormais réussir)
+
+          # Étape 2 : lecture des versions distantes non présentes localement
+          $output = supabase migration list --format json | ConvertFrom-Json
+          $remoteOnly = $output.versions | Where-Object { $_.source -eq "remote" -and $_.status -eq "applied" }
+
+          if ($remoteOnly.Count -eq 0) {
+            Write-Error "❌ Aucun ID distant à réparer trouvé."
+            exit 1
+          }
+
+          # Étape 3 : marquer chaque version distante comme "applied"
+          foreach ($migration in $remoteOnly) {
+            $version = $migration.version
+            Write-Host "🔧 Repairing version $version"
+            supabase migration repair --status applied $version
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "❌ Échec du repair de $version"
+              exit 1
+            }
+          }
+
+          # Étape 4 : retenter le push
           supabase db push
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Auto‑repair failed, aborting."
+            Write-Error "❌ Push échoué même après repair."
             exit 1
           } else {
-            Write-Host "✅ Migrations repaired et appliquées."
+            Write-Host "✅ Migrations réparées et appliquées avec succès."
           }
         } else {
-          Write-Host "✅ Migrations appliquées avec succès."
+          Write-Host "✅ Migrations appliquées sans erreur."
         }
 
     # 6) Build Vite (dist/)
