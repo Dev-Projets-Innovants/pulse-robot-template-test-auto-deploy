@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-latest
 
     # ↳ GitHub charge AUTOMATIQUEMENT les vars/secrets de l'environnement ciblé
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development_test ' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development_test' }}
 
     # ↳ Expose ces valeurs à TOUTES les steps (pas besoin de ré‑écrire)
     env:
