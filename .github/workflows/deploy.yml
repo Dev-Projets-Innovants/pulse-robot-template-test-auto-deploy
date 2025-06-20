@@ -1,4 +1,5 @@
 
+
 name: Deploy Application (Vite React TS)
 
 # ────────────────────
@@ -69,7 +70,21 @@ jobs:
         Write-Host "🔗 Linking project $env:SUPABASE_PROJECT_REF"
         supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_DB_PASSWORD
 
-    # 5) Appliquer ou réparer les migrations
+    # 5) Quick repair: revert ghost migration
+    - name: Quick repair: revert ghost migration
+      shell: pwsh
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        Write-Host "🔧 Reverting ghost migration 20250620120922..."
+        supabase migration repair --status reverted 20250620120922
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "✅ Ghost migration reverted successfully"
+        } else {
+          Write-Warning "⚠️ Ghost migration revert failed or migration doesn't exist (this is usually OK)"
+        }
+
+    # 6) Appliquer ou réparer les migrations
     - name: 📦 Apply or repair migrations
       shell: pwsh
       env:
@@ -113,3 +128,4 @@ jobs:
         }
 
     # ... keep existing code (Build application, deployment simulation, and completion steps)
+
