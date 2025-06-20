@@ -1,4 +1,5 @@
-name: Deploy Application (Vite React TS)
+
+name: Deploy Application (Vite React TS)
 
 # ───────────────────────
 # Déclencheurs
@@ -7,7 +8,7 @@ on:
   push:
     branches:
       - main
-      - development_test    # ta branche Dev + Test
+      - development_test    # ta branche Dev + Test
   workflow_dispatch:
     inputs:
       environment:
@@ -22,14 +23,14 @@ on:
 # ───────────────────────
 jobs:
   deploy:
-    runs-on: windows-latest                       # runner Windows pour ton script PS1
+    runs-on: windows-latest                       # runner Windows pour ton script PS1
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development_test' }}
 
     steps:
     # 1. Checkout
     - uses: actions/checkout@v4
 
-    # 2. Node 18 + cache npm
+    # 2. Node 18 + cache npm
     - uses: actions/setup-node@v4
       with:
         node-version: 18
@@ -57,25 +58,28 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}" >> $env:GITHUB_ENV
         }
 
-    # 5. Installe la CLI Supabase
+    # 5. Installe la CLI Supabase
     - uses: supabase/setup-cli@v1
       with:
         version: latest
 
-    # 6. Linke le projet Supabase (utilise les vars créées ci‑dessus)
+    # 6. Linke le projet Supabase
     - name: Link Supabase project
       shell: pwsh
-      run: |
-        supabase link --project-ref "$env:SUPABASE_PROJECT_REF" --password "$env:SUPABASE_SERVICE_ROLE_KEY"
       env:
+        SUPABASE_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}          # récupéré de GITHUB_ENV
+        SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        Write-Host "🔎 Project ref = $env:SUPABASE_PROJECT_REF"
+        supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_SERVICE_ROLE_KEY
 
     # 7. Applique les migrations
     - name: Run Supabase migrations
       shell: pwsh
-      run: supabase db push
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: supabase db push
 
     # 8. Build Vite (dist/)
     - name: Build application
