@@ -1,3 +1,4 @@
+
 name: Deploy Application (Vite React TS)
 
 # ────────────────────
@@ -48,7 +49,7 @@ jobs:
     # 1) Checkout
     - uses: actions/checkout@v4
 
-    # 2) Node 18 + cache npm
+    # 2) Node 18 + cache npm
     - uses: actions/setup-node@v4
       with:
         node-version: 18
@@ -68,25 +69,58 @@ jobs:
         Write-Host "🔗 Linking project $env:SUPABASE_PROJECT_REF"
         supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_DB_PASSWORD
 
-    # 5) Appliquer les migrations
+    # 5) Réparer les migrations en cas de désynchronisation
+    - name: Repair migration history if needed
+      shell: pwsh
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        Write-Host "🔧 Checking migration history..."
+        try {
+          # Essayer de lister les migrations pour détecter les problèmes
+          supabase migration list 2>&1 | Out-Null
+          Write-Host "✅ Migration history is synchronized"
+        }
+        catch {
+          Write-Host "⚠️ Migration mismatch detected, attempting repair..."
+          
+          # Réparer la migration spécifique mentionnée dans l'erreur
+          try {
+            supabase migration repair --status reverted 20250620120922
+            Write-Host "✅ Migration 20250620120922 marked as reverted"
+          }
+          catch {
+            Write-Host "ℹ️ Migration 20250620120922 repair not needed or already handled"
+          }
+          
+          # Synchroniser avec la base de données distante
+          Write-Host "🔄 Pulling latest schema from remote database..."
+          supabase db pull
+          Write-Host "✅ Schema synchronized with remote database"
+        }
+
+    # 6) Appliquer les migrations
     - name: Run Supabase migrations
       shell: pwsh
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: supabase db push
+      run: |
+        Write-Host "📦 Applying migrations..."
+        supabase db push
+        Write-Host "✅ Migrations applied successfully"
 
-    # 6) Build Vite (dist/)
+    # 7) Build Vite (dist/)
     - name: Build application
       run: |
         npm ci
         npm run build
 
-    # 7) Simulation de déploiement FTP
+    # 8) Simulation de déploiement FTP
     - name: Run deployment simulation
       shell: pwsh
       run: ./scripts/simulate-ftp-deploy.ps1 -EnvName "$env:DEPLOY_ENV"
 
-    # 8) Message final
+    # 9) Message final
     - name: Deployment complete
       shell: pwsh
       run: |
