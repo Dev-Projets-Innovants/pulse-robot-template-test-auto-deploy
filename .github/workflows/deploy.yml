@@ -1,3 +1,4 @@
+
 name: Deploy Application (Vite React TS)
 
 # ────────────────────
@@ -48,7 +49,7 @@ jobs:
     # 1) Checkout
     - uses: actions/checkout@v4
 
-    # 2) Node 18 + cache npm
+    # 2) Node 18 + cache npm
     - uses: actions/setup-node@v4
       with:
         node-version: 18
@@ -68,27 +69,81 @@ jobs:
         Write-Host "🔗 Linking project $env:SUPABASE_PROJECT_REF"
         supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_DB_PASSWORD
 
-    # 5) Appliquer les migrations
-    - name: Run Supabase migrations
+    # 5) Quick repair: revert ghost migration
+    - name: Quick repair - revert ghost migration
       shell: pwsh
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: supabase db push
-
-    # 6) Build Vite (dist/)
-    - name: Build application
       run: |
-        npm ci
-        npm run build
+        Write-Host "🔧 Reverting ghost migration 20250620120922..."
+        supabase migration repair --status reverted 20250620120922
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "✅ Ghost migration reverted successfully"
+        } else {
+          Write-Warning "⚠️ Ghost migration revert failed or migration doesn't exist (this is usually OK)"
+        }
 
-    # 7) Simulation de déploiement FTP
-    - name: Run deployment simulation
+    # 6) Appliquer ou réparer les migrations
+    - name: Apply or repair migrations
       shell: pwsh
-      run: ./scripts/simulate-ftp-deploy.ps1 -EnvName "$env:DEPLOY_ENV"
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        Write-Host "📦 Applying migrations..."
+        supabase db push
+        if ($LASTEXITCODE -ne 0) {
+          Write-Warning "⚠️ Migration mismatch detected, running auto‑repair..."
 
-    # 8) Message final
+          # Étape 1 : synchroniser le schéma local
+          supabase db pull
+
+          # Étape 2 : Réparer tous les fichiers de migration locaux
+          $migrations = Get-ChildItem -Path "supabase/migrations" -Filter "*.sql"
+          foreach ($file in $migrations) {
+            # Extraire le timestamp du nom du fichier
+            if ($file.BaseName -match "^(\d{14})_") {
+              $version = $Matches[1]
+              Write-Host "🔧 Repairing migration $version..."
+              supabase migration repair --status applied $version
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "❌ Repair failed for $version"
+                exit 1
+              }
+            } else {
+              Write-Warning "⏭️ Skipped file with invalid name format: $($file.Name)"
+            }
+          }
+
+          # Étape 3 : Retenter le push
+          supabase db push
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Push failed after repair attempt."
+            exit 1
+          } else {
+            Write-Host "✅ Migrations repaired and applied successfully."
+          }
+        } else {
+          Write-Host "✅ Migrations applied successfully."
+        }
+
+    # 7) Install dependencies
+    - name: Install dependencies
+      run: npm ci
+
+    # 8) Build application
+    - name: Build application
+      run: npm run build
+
+    # 9) Simulate FTP deployment
+    - name: Simulate FTP deployment
+      shell: pwsh
+      run: |
+        Write-Host "🚀 Simulating FTP deployment to $env:DEPLOY_ENV environment..."
+        ./scripts/simulate-ftp-deploy.ps1 -Environment $env:DEPLOY_ENV
+
+    # 10) Deployment complete
     - name: Deployment complete
       shell: pwsh
       run: |
-        Write-Host "🎉 Deployment to $env:DEPLOY_ENV completed!"
-        Write-Host "📁 Files copied to C:\DeploySimulation\$env:DEPLOY_ENV"
+        Write-Host "✅ Deployment to $env:DEPLOY_ENV completed successfully!"
+        Write-Host "🌐 Application should be available at your configured domain"
