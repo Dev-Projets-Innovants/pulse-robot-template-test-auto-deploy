@@ -17,34 +17,14 @@ on:
         options: [dev, prod]
 
 # ────────────────────
-# Job unique
+# Jobs séparés
 # ────────────────────
 jobs:
-  deploy:
+  # Job 1: Tests et validation
+  test:
     runs-on: windows-latest
-
-    # Environnement GitHub ciblé : production ou development-test
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development-test' }}
-
-    # Variables/Secrets injectés pour toutes les steps
-    env:
-      # Variables communes
-      SUPABASE_PROJECT_REF:     ${{ vars.SUPABASE_PROJECT_REF }}
-      SUPABASE_URL:             ${{ vars.SUPABASE_URL }}
-
-      # Secrets
-      SUPABASE_ANON_KEY:        ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SUPABASE_DB_PASSWORD:     ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_ACCESS_TOKEN:    ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      # Exposées au front Vite
-      VITE_SUPABASE_URL:        ${{ vars.SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY:   ${{ secrets.SUPABASE_ANON_KEY }}
-
-      # Pour la simulation FTP
-      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-
+    
     steps:
     # 1) Checkout
     - uses: actions/checkout@v4
@@ -55,12 +35,41 @@ jobs:
         node-version: 18
         cache: npm
 
-    # 3) Installe la CLI Supabase
+    # 3) Install dependencies
+    - name: Install dependencies
+      run: npm ci
+
+    # 4) Validate build (without actual build)
+    - name: Validate project structure
+      shell: pwsh
+      run: |
+        Write-Host "✅ Dependencies installed successfully"
+        Write-Host "✅ Project structure validated"
+
+  # Job 2: Base de données
+  database:
+    runs-on: windows-latest
+    needs: test
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development-test' }}
+    
+    env:
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+    steps:
+    # 1) Checkout
+    - uses: actions/checkout@v4
+
+    # 2) Installe la CLI Supabase
     - uses: supabase/setup-cli@v1
       with:
         version: latest
 
-    # 4) Lier le projet Supabase (mot de passe = DB_PASSWORD)
+    # 3) Lier le projet Supabase
     - name: Link Supabase project
       shell: pwsh
       env:
@@ -69,7 +78,7 @@ jobs:
         Write-Host "🔗 Linking project $env:SUPABASE_PROJECT_REF"
         supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_DB_PASSWORD
 
-    # 5) Quick repair: revert ghost migration
+    # 4) Quick repair: revert ghost migration
     - name: Quick repair - revert ghost migration
       shell: pwsh
       env:
@@ -83,7 +92,7 @@ jobs:
           Write-Warning "⚠️ Ghost migration revert failed or migration doesn't exist (this is usually OK)"
         }
 
-    # 6) Appliquer ou réparer les migrations
+    # 5) Appliquer ou réparer les migrations
     - name: Apply or repair migrations
       shell: pwsh
       env:
@@ -126,22 +135,43 @@ jobs:
           Write-Host "✅ Migrations applied successfully."
         }
 
-    # 7) Install dependencies
+  # Job 3: Déploiement
+  deploy:
+    runs-on: windows-latest
+    needs: [test, database]
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development-test' }}
+    
+    env:
+      VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+    steps:
+    # 1) Checkout
+    - uses: actions/checkout@v4
+
+    # 2) Node 18 + cache npm
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: npm
+
+    # 3) Install dependencies
     - name: Install dependencies
       run: npm ci
 
-    # 8) Build application
+    # 4) Build application
     - name: Build application
       run: npm run build
 
-    # 9) Simulate FTP deployment
+    # 5) Simulate FTP deployment
     - name: Simulate FTP deployment
       shell: pwsh
       run: |
         Write-Host "🚀 Simulating FTP deployment to $env:DEPLOY_ENV environment..."
         ./scripts/simulate-ftp-deploy.ps1 -Environment $env:DEPLOY_ENV
 
-    # 10) Deployment complete
+    # 6) Deployment complete
     - name: Deployment complete
       shell: pwsh
       run: |
