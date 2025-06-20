@@ -84,7 +84,7 @@ jobs:
         }
 
     # 6) Appliquer ou réparer les migrations
-    - name: 📦 Apply or repair migrations
+    - name: Apply or repair migrations
       shell: pwsh
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
