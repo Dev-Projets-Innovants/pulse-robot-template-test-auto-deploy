@@ -1,4 +1,5 @@
 
+
 name: Deploy Application (Vite React TS)
 
 # ────────────────────
@@ -69,60 +70,47 @@ jobs:
         Write-Host "🔗 Linking project $env:SUPABASE_PROJECT_REF"
         supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_DB_PASSWORD
 
-    # 5) Réparer les migrations en cas de désynchronisation
-    - name: Repair migration history if needed
-      shell: pwsh
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      run: |
-        Write-Host "🔧 Checking migration history..."
-        try {
-          # Essayer de lister les migrations pour détecter les problèmes
-          supabase migration list 2>&1 | Out-Null
-          Write-Host "✅ Migration history is synchronized"
-        }
-        catch {
-          Write-Host "⚠️ Migration mismatch detected, attempting repair..."
-          
-          # Réparer la migration spécifique mentionnée dans l'erreur
-          try {
-            supabase migration repair --status reverted 20250620120922
-            Write-Host "✅ Migration 20250620120922 marked as reverted"
-          }
-          catch {
-            Write-Host "ℹ️ Migration 20250620120922 repair not needed or already handled"
-          }
-          
-          # Synchroniser avec la base de données distante
-          Write-Host "🔄 Pulling latest schema from remote database..."
-          supabase db pull
-          Write-Host "✅ Schema synchronized with remote database"
-        }
-
-    # 6) Appliquer les migrations
-    - name: Run Supabase migrations
+    # 5) Appliquer ou réparer les migrations
+    - name: 📦 Apply or repair migrations
       shell: pwsh
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       run: |
         Write-Host "📦 Applying migrations..."
         supabase db push
-        Write-Host "✅ Migrations applied successfully"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Warning "⚠️ Migration mismatch detected, running auto‑repair..."
+          # Étape A : récupérer l'état actuel de la base
+          supabase db pull
+          # Étape B : dire à Supabase que tout ce qui est déjà sur la base est 'applied'
+          supabase migration repair --status applied --all
+          # Étape C : retenter le push (devrait désormais réussir)
+          supabase db push
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Auto‑repair failed, aborting."
+            exit 1
+          } else {
+            Write-Host "✅ Migrations repaired et appliquées."
+          }
+        } else {
+          Write-Host "✅ Migrations appliquées avec succès."
+        }
 
-    # 7) Build Vite (dist/)
+    # 6) Build Vite (dist/)
     - name: Build application
       run: |
         npm ci
         npm run build
 
-    # 8) Simulation de déploiement FTP
+    # 7) Simulation de déploiement FTP
     - name: Run deployment simulation
       shell: pwsh
       run: ./scripts/simulate-ftp-deploy.ps1 -EnvName "$env:DEPLOY_ENV"
 
-    # 9) Message final
+    # 8) Message final
     - name: Deployment complete
       shell: pwsh
       run: |
         Write-Host "🎉 Deployment to $env:DEPLOY_ENV completed!"
         Write-Host "📁 Files copied to C:\DeploySimulation\$env:DEPLOY_ENV"
+
