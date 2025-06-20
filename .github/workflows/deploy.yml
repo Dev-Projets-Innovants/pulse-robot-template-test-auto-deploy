@@ -1,0 +1,84 @@
+
+name: Deploy Application (Vite React TS)
+
+on:
+  push:
+    branches: [main, development_test]   # prod  | development_test
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, prod]
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    # ↳ GitHub charge AUTOMATIQUEMENT les vars/secrets de l'environnement ciblé
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development_test' }}
+
+    # ↳ Expose ces valeurs à TOUTES les steps (pas besoin de ré‑écrire)
+    env:
+      SUPABASE_PROJECT_REF:  ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_URL:          ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY:     ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Vite a besoin du préfixe VITE_
+      VITE_SUPABASE_URL:     ${{ vars.SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      # Nom lisible pour la simulation FTP
+      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+    steps:
+    # 1) Récupération du code
+    - uses: actions/checkout@v4
+
+    # 2) Node 18 + cache npm
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: npm
+
+    # 3) Installer la CLI Supabase
+    - uses: supabase/setup-cli@v1        # (@v1 → dernier tag dispo)
+      with:
+        version: latest
+
+    # 4) Lier le projet Supabase (grâce aux env déjà dispo)
+    - name: Link Supabase project
+      shell: pwsh
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        Write-Host "🔗 Linking project $env:SUPABASE_PROJECT_REF"
+        supabase link --project-ref $env:SUPABASE_PROJECT_REF --password $env:SUPABASE_SERVICE_ROLE_KEY
+
+    # 5) Appliquer les migrations
+    - name: Run Supabase migrations
+      shell: pwsh
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: supabase db push
+
+    # 6) Build Vite (dist/)
+    - name: Build application
+      run: |
+        npm ci
+        npm run build
+
+    # 7) Simulation de déploiement FTP
+    - name: Run deployment simulation
+      shell: pwsh
+      run: ./scripts/simulate-ftp-deploy.ps1 -EnvName "$env:DEPLOY_ENV"
+
+    # 8) Message final
+    - name: Deployment complete
+      shell: pwsh
+      run: |
+        Write-Host "🎉 Deployment to $env:DEPLOY_ENV completed!"
+        Write-Host "📁 Files copied to C:\DeploySimulation\$env:DEPLOY_ENV"
