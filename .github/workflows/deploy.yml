@@ -3,7 +3,7 @@ name: Deploy Application (Vite React TS)
 
 on:
   push:
-    branches: [main, development_test]   # prod  | development_test
+    branches: [main, development_test]   # prod  | dev‑test
   workflow_dispatch:
     inputs:
       environment:
@@ -29,7 +29,7 @@ jobs:
 
       # Vite a besoin du préfixe VITE_
       VITE_SUPABASE_URL:     ${{ vars.SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY:${{ secrets.SUPABASE_ANON_KEY }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       # Nom lisible pour la simulation FTP
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
