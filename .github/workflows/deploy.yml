@@ -1,5 +1,4 @@
 
-
 name: Deploy Application (Vite React TS)
 
 # ────────────────────
@@ -127,5 +126,24 @@ jobs:
           Write-Host "✅ Migrations applied successfully."
         }
 
-    # ... keep existing code (Build application, deployment simulation, and completion steps)
+    # 7) Install dependencies
+    - name: Install dependencies
+      run: npm ci
 
+    # 8) Build application
+    - name: Build application
+      run: npm run build
+
+    # 9) Simulate FTP deployment
+    - name: Simulate FTP deployment
+      shell: pwsh
+      run: |
+        Write-Host "🚀 Simulating FTP deployment to $env:DEPLOY_ENV environment..."
+        ./scripts/simulate-ftp-deploy.ps1 -Environment $env:DEPLOY_ENV
+
+    # 10) Deployment complete
+    - name: Deployment complete
+      shell: pwsh
+      run: |
+        Write-Host "✅ Deployment to $env:DEPLOY_ENV completed successfully!"
+        Write-Host "🌐 Application should be available at your configured domain"
