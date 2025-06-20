@@ -1,11 +1,13 @@
+name: Deploy Application (Vite React TS)
 
-name: Deploy Application
-
+# ───────────────────────
+# Déclencheurs
+# ───────────────────────
 on:
   push:
     branches:
       - main
-      - development_test
+      - development_test    # ta branche Dev + Test
   workflow_dispatch:
     inputs:
       environment:
@@ -13,63 +15,83 @@ on:
         required: true
         default: 'dev'
         type: choice
-        options:
-          - dev
-          - prod
+        options: [dev, prod]
 
+# ───────────────────────
+# Job unique
+# ───────────────────────
 jobs:
   deploy:
-    runs-on: windows-latest
-    
+    runs-on: windows-latest                       # runner Windows pour ton script PS1
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development_test' }}
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # 1. Checkout
+    - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
+    # 2. Node 18 + cache npm
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+    # 3. Dépendances
+    - name: Install dependencies
+      run: npm ci
 
-      - name: Set environment variables
-        run: |
-          if ("${{ github.ref }}" -eq "refs/heads/main") {
-            echo "DEPLOY_ENV=prod" >> $env:GITHUB_ENV
-            echo "VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL_PROD }}" >> $env:GITHUB_ENV
-            echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY_PROD }}" >> $env:GITHUB_ENV
-          } else {
-            echo "DEPLOY_ENV=dev" >> $env:GITHUB_ENV
-            echo "VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL_DEV }}" >> $env:GITHUB_ENV
-            echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY_DEV }}" >> $env:GITHUB_ENV
-          }
-        shell: powershell
+    # 4. Variables / secrets selon la branche
+    - name: Set runtime env vars
+      shell: powershell
+      run: |
+        if ("${{ github.ref }}" -eq "refs/heads/main") {
+          echo "DEPLOY_ENV=prod" >> $env:GITHUB_ENV
+          echo "VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL_PROD }}" >> $env:GITHUB_ENV
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY_PROD }}" >> $env:GITHUB_ENV
+          echo "SUPABASE_PROJECT_REF=${{ vars.SUPABASE_PROJECT_REF_PROD }}" >> $env:GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY_PROD }}" >> $env:GITHUB_ENV
+        } else {
+          echo "DEPLOY_ENV=dev" >> $env:GITHUB_ENV
+          echo "VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL_DEV }}" >> $env:GITHUB_ENV
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY_DEV }}" >> $env:GITHUB_ENV
+          echo "SUPABASE_PROJECT_REF=${{ vars.SUPABASE_PROJECT_REF_DEV }}" >> $env:GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}" >> $env:GITHUB_ENV
+        }
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
+    # 5. Installe la CLI Supabase
+    - uses: supabase/setup-cli@v2
+      with:
+        version: latest
 
-      - name: Run Supabase migrations
-        run: |
-          supabase db push --project-ref ${{ vars.VITE_SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    # 6. Linke le projet Supabase (utilise les vars créées ci‑dessus)
+    - name: Link Supabase project
+      shell: pwsh
+      run: |
+        supabase link --project-ref "$env:SUPABASE_PROJECT_REF" --password "$env:SUPABASE_SERVICE_ROLE_KEY"
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Build application
-        run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ env.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ env.VITE_SUPABASE_ANON_KEY }}
+    # 7. Applique les migrations
+    - name: Run Supabase migrations
+      shell: pwsh
+      run: supabase db push
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Run deployment simulation
-        run: |
-          powershell -ExecutionPolicy Bypass -File "scripts/simulate-ftp-deploy.ps1" -EnvName "${{ env.DEPLOY_ENV }}"
-        shell: cmd
+    # 8. Build Vite (dist/)
+    - name: Build application
+      run: npm run build
+      env:
+        VITE_SUPABASE_URL: ${{ env.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ env.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Deployment complete
-        run: |
-          echo "🎉 Deployment to ${{ env.DEPLOY_ENV }} environment completed successfully!"
-          echo "📁 Files deployed to: C:\DeploySimulation\${{ env.DEPLOY_ENV }}"
+    # 9. Simulation de déploiement
+    - name: Run deployment simulation
+      shell: pwsh
+      run: ./scripts/simulate-ftp-deploy.ps1 -EnvName "${{ env.DEPLOY_ENV }}"
+
+    # 10. Message final
+    - name: Deployment complete
+      shell: pwsh
+      run: |
+        Write-Output "🎉 Deployment to $env:DEPLOY_ENV completed successfully!"
+        Write-Output "📁 Files deployed to: C:\DeploySimulation\$env:DEPLOY_ENV"
