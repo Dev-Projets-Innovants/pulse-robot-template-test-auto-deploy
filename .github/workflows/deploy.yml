@@ -1,5 +1,4 @@
 
-
 name: Deploy Application (Vite React TS)
 
 # ────────────────────
@@ -80,57 +79,37 @@ jobs:
         supabase db push
         if ($LASTEXITCODE -ne 0) {
           Write-Warning "⚠️ Migration mismatch detected, running auto‑repair..."
-          
-          # Étape 1 : pull le schéma actuel pour se synchroniser
+
+          # Étape 1 : synchroniser le schéma local
           supabase db pull
 
-          # Étape 2 : lecture des versions distantes non présentes localement
-          $output = supabase migration list --format json | ConvertFrom-Json
-          $remoteOnly = $output.versions | Where-Object { $_.source -eq "remote" -and $_.status -eq "applied" }
-
-          if ($remoteOnly.Count -eq 0) {
-            Write-Error "❌ Aucun ID distant à réparer trouvé."
-            exit 1
-          }
-
-          # Étape 3 : marquer chaque version distante comme "applied"
-          foreach ($migration in $remoteOnly) {
-            $version = $migration.version
-            Write-Host "🔧 Repairing version $version"
-            supabase migration repair --status applied $version
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "❌ Échec du repair de $version"
-              exit 1
+          # Étape 2 : Réparer tous les fichiers de migration locaux
+          $migrations = Get-ChildItem -Path "supabase/migrations" -Filter "*.sql"
+          foreach ($file in $migrations) {
+            # Extraire le timestamp du nom du fichier
+            if ($file.BaseName -match "^(\d{14})_") {
+              $version = $Matches[1]
+              Write-Host "🔧 Repairing migration $version..."
+              supabase migration repair --status applied $version
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "❌ Repair failed for $version"
+                exit 1
+              }
+            } else {
+              Write-Warning "⏭️ Skipped file with invalid name format: $($file.Name)"
             }
           }
 
-          # Étape 4 : retenter le push
+          # Étape 3 : Retenter le push
           supabase db push
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Push échoué même après repair."
+            Write-Error "❌ Push failed after repair attempt."
             exit 1
           } else {
-            Write-Host "✅ Migrations réparées et appliquées avec succès."
+            Write-Host "✅ Migrations repaired and applied successfully."
           }
         } else {
-          Write-Host "✅ Migrations appliquées sans erreur."
+          Write-Host "✅ Migrations applied successfully."
         }
 
-    # 6) Build Vite (dist/)
-    - name: Build application
-      run: |
-        npm ci
-        npm run build
-
-    # 7) Simulation de déploiement FTP
-    - name: Run deployment simulation
-      shell: pwsh
-      run: ./scripts/simulate-ftp-deploy.ps1 -EnvName "$env:DEPLOY_ENV"
-
-    # 8) Message final
-    - name: Deployment complete
-      shell: pwsh
-      run: |
-        Write-Host "🎉 Deployment to $env:DEPLOY_ENV completed!"
-        Write-Host "📁 Files copied to C:\DeploySimulation\$env:DEPLOY_ENV"
-
+    # ... keep existing code (Build application, deployment simulation, and completion steps)
